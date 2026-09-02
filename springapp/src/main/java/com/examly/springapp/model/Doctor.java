@@ -7,14 +7,19 @@ import jakarta.persistence.GeneratedValue;
 import jakarta.persistence.GenerationType;
 import jakarta.persistence.Id;
 import jakarta.persistence.OneToMany;
+import jakarta.validation.constraints.Email;
+import jakarta.validation.constraints.NotBlank;
 
 @Entity
 public class Doctor {
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
+    @NotBlank(message = "Name is required")
     private String name;
+    @Email(message = "Email must be valid")
     private String email;
+    @NotBlank(message = "Specialization is required")
     private String specialization;
     private String phone;
     private int roomNumber;

@@ -14,6 +14,7 @@ import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
+import jakarta.validation.Valid;
 
 import com.examly.springapp.model.Doctor;
 import com.examly.springapp.service.DoctorService;
@@ -25,7 +26,7 @@ public class DoctorController {
     private DoctorService doctorService;
 
     @PostMapping()
-    public  ResponseEntity<Doctor> createDoctor(@RequestBody Doctor doctor)
+    public  ResponseEntity<Doctor> createDoctor(@Valid @RequestBody Doctor doctor)
     {
         Doctor savedDoctor=doctorService.addDoctor(doctor);
         return new ResponseEntity<>(savedDoctor,HttpStatus.CREATED);
@@ -54,7 +55,7 @@ public class DoctorController {
     }
     @PutMapping("/{id}")
     public ResponseEntity<Doctor> updateDoctorById(@PathVariable Long id,
-    @RequestBody Doctor doctor)
+    @Valid @RequestBody Doctor doctor)
     {
         Doctor updateDoctor=doctorService.updateDoctorById(id, doctor);
 

@@ -6,13 +6,16 @@ import jakarta.persistence.GenerationType;
 import jakarta.persistence.Id;
 import jakarta.persistence.JoinColumn;
 import jakarta.persistence.ManyToOne;
+import jakarta.validation.constraints.NotBlank;
 
 @Entity
 public class MedicalRecord {
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
+    @NotBlank(message = "Diagnosis is required")
     private String diagnosis;
+    @NotBlank(message = "Prescription is required")
     private String prescription;
     @ManyToOne
     @JoinColumn(name = "patient_id")

@@ -12,6 +12,7 @@ import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
+import jakarta.validation.Valid;
 
 import com.examly.springapp.model.Appointment;
 import com.examly.springapp.service.AppointmentService;
@@ -24,7 +25,7 @@ public class AppointmentController {
     private AppointmentService appointmentService;
     
     @PostMapping
-    public ResponseEntity<Appointment> createAppointment(@RequestBody Appointment appointment) {
+    public ResponseEntity<Appointment> createAppointment(@Valid @RequestBody Appointment appointment) {
         Appointment savedAppointment = appointmentService.addAppointment(appointment);
         return new ResponseEntity<>(savedAppointment, HttpStatus.CREATED);
     }
@@ -45,7 +46,7 @@ public class AppointmentController {
     }
     
     @PutMapping("/{id}")
-    public ResponseEntity<Appointment> updateAppointment(@PathVariable Long id, @RequestBody Appointment appointment) {
+    public ResponseEntity<Appointment> updateAppointment(@PathVariable Long id, @Valid @RequestBody Appointment appointment) {
         Appointment updatedAppointment = appointmentService.updateAppointmentById(id, appointment);
         return ResponseEntity.ok(updatedAppointment);
     }

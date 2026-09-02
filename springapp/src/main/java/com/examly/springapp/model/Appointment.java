@@ -10,6 +10,8 @@ import jakarta.persistence.GenerationType;
 import jakarta.persistence.Id;
 import jakarta.persistence.JoinColumn;
 import jakarta.persistence.ManyToOne;
+import jakarta.validation.constraints.NotBlank;
+import jakarta.validation.constraints.NotNull;
 
 @Entity
 public class Appointment {
@@ -23,7 +25,9 @@ public class Appointment {
     @JoinColumn(name = "doctor_id")
     private Doctor doctor;
     @JsonFormat(pattern = "yyyy-MM-dd'T'HH:mm:ss")
+    @NotNull(message = "Appointment time is required")
     private LocalDateTime appointmentTime;
+    @NotBlank(message = "Status is required")
     private String status;
     private String notes;
     

@@ -13,6 +13,7 @@ import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
+import jakarta.validation.Valid;
 
 import com.examly.springapp.model.Patient;
 import com.examly.springapp.service.PatientService;
@@ -25,7 +26,7 @@ public class PatientController {
     private PatientService patientService;
 
 @PostMapping
- public ResponseEntity<Patient> addPatient(@RequestBody Patient patient)
+ public ResponseEntity<Patient> addPatient(@Valid @RequestBody Patient patient)
  {
     Patient savePatient=patientService.addPatient(patient);
     return new ResponseEntity<>(savePatient,HttpStatus.CREATED);
@@ -51,7 +52,7 @@ public ResponseEntity<List<Patient>> getAllPatients() {
         return new ResponseEntity<>(patient,HttpStatus.OK);
     }
 @PutMapping("/{id}") 
-public ResponseEntity<Patient> updatePatientById(@PathVariable Long id,@RequestBody Patient patient)
+public ResponseEntity<Patient> updatePatientById(@PathVariable Long id,@Valid @RequestBody Patient patient)
 {
 
     Patient updatePatient=patientService.updatePatientById(id, patient);

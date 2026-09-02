@@ -6,8 +6,13 @@ import java.util.Optional;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 
+import com.examly.springapp.exception.ResourceNotFoundException;
 import com.examly.springapp.model.Appointment;
+import com.examly.springapp.model.Doctor;
+import com.examly.springapp.model.Patient;
 import com.examly.springapp.repository.AppointmentRepository;
+import com.examly.springapp.repository.DoctorRepository;
+import com.examly.springapp.repository.PatientRepository;
 
 @Service
 public class AppointmentServiceImpl implements AppointmentService {
@@ -15,8 +20,28 @@ public class AppointmentServiceImpl implements AppointmentService {
     @Autowired
     private AppointmentRepository appointmentRepository;
 
+    @Autowired
+    private PatientRepository patientRepository;
+
+    @Autowired
+    private DoctorRepository doctorRepository;
+
     @Override
     public Appointment addAppointment(Appointment appointment) {
+        if (appointment.getPatient() == null || appointment.getPatient().getId() == null) {
+            throw new ResourceNotFoundException("Patient ID is required");
+        }
+        if (appointment.getDoctor() == null || appointment.getDoctor().getId() == null) {
+            throw new ResourceNotFoundException("Doctor ID is required");
+        }
+        Patient patient = patientRepository.findById(appointment.getPatient().getId())
+                .orElseThrow(() -> new ResourceNotFoundException(
+                        "Patient not found with ID: " + appointment.getPatient().getId()));
+        Doctor doctor = doctorRepository.findById(appointment.getDoctor().getId())
+                .orElseThrow(() -> new ResourceNotFoundException(
+                        "Doctor not found with ID: " + appointment.getDoctor().getId()));
+        appointment.setPatient(patient);
+        appointment.setDoctor(doctor);
         return appointmentRepository.save(appointment);
     }
 
@@ -27,19 +52,33 @@ public class AppointmentServiceImpl implements AppointmentService {
 
     @Override
     public Appointment getAppointmentById(Long id) {
-        return appointmentRepository.findById(id).orElse(null);
+        return appointmentRepository.findById(id)
+                .orElseThrow(() -> new ResourceNotFoundException(
+                        "Appointment not found with ID: " + id));
     }
 
     @Override
     public Appointment updateAppointmentById(Long id, Appointment appointment) {
-        Optional<Appointment> existingAppointment = appointmentRepository.findById(id);
-        if (existingAppointment.isPresent()) {
-            Appointment newAppointment = existingAppointment.get();
-            newAppointment.setAppointmentTime(appointment.getAppointmentTime());
-            newAppointment.setStatus(appointment.getStatus());
-            newAppointment.setNotes(appointment.getNotes());
-            return appointmentRepository.save(newAppointment);
+        Appointment existingAppointment = appointmentRepository.findById(id)
+                .orElseThrow(() -> new ResourceNotFoundException(
+                        "Appointment not found with ID: " + id));
+
+        if (appointment.getPatient() != null && appointment.getPatient().getId() != null) {
+            Patient patient = patientRepository.findById(appointment.getPatient().getId())
+                    .orElseThrow(() -> new ResourceNotFoundException(
+                            "Patient not found with ID: " + appointment.getPatient().getId()));
+            existingAppointment.setPatient(patient);
         }
-        return null;
+        if (appointment.getDoctor() != null && appointment.getDoctor().getId() != null) {
+            Doctor doctor = doctorRepository.findById(appointment.getDoctor().getId())
+                    .orElseThrow(() -> new ResourceNotFoundException(
+                            "Doctor not found with ID: " + appointment.getDoctor().getId()));
+            existingAppointment.setDoctor(doctor);
+        }
+
+        existingAppointment.setAppointmentTime(appointment.getAppointmentTime());
+        existingAppointment.setStatus(appointment.getStatus());
+        existingAppointment.setNotes(appointment.getNotes());
+        return appointmentRepository.save(existingAppointment);
     }
 }

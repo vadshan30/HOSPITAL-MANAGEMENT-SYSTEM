@@ -6,6 +6,7 @@ import java.util.Optional;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 
+import com.examly.springapp.exception.ResourceNotFoundException;
 import com.examly.springapp.model.MedicalRecord;
 import com.examly.springapp.model.Patient;
 import com.examly.springapp.repository.MedicalRecordRepository;
@@ -20,10 +21,13 @@ public class MedicalRecordServiceImpl implements MedicalRecordService {
 
     @Override
     public MedicalRecord addMedicalRecord(MedicalRecord medicalRecord) {
-        Optional<Patient> existingPatient = patientRepository.findById(medicalRecord.getPatient().getId());
-        if (existingPatient.isPresent()) {
-            medicalRecord.setPatient(existingPatient.get());
+        if (medicalRecord.getPatient() == null || medicalRecord.getPatient().getId() == null) {
+            throw new ResourceNotFoundException("Patient ID is required");
         }
+        Patient patient = patientRepository.findById(medicalRecord.getPatient().getId())
+                .orElseThrow(() -> new ResourceNotFoundException(
+                        "Patient not found with ID: " + medicalRecord.getPatient().getId()));
+        medicalRecord.setPatient(patient);
         return medicalRecordRepository.save(medicalRecord);
     }
 
@@ -34,18 +38,26 @@ public class MedicalRecordServiceImpl implements MedicalRecordService {
 
     @Override
     public MedicalRecord getMedicalRecordById(Long id) {
-        return medicalRecordRepository.findById(id).orElse(null);
+        return medicalRecordRepository.findById(id)
+                .orElseThrow(() -> new ResourceNotFoundException(
+                        "Medical record not found with ID: " + id));
     }
 
     @Override
     public MedicalRecord updateMedicalRecordById(Long id, MedicalRecord medicalRecord) {
-        Optional<MedicalRecord> existingRecord = medicalRecordRepository.findById(id);
-        if (existingRecord.isPresent()) {
-            MedicalRecord newRecord = existingRecord.get();
-            newRecord.setDiagnosis(medicalRecord.getDiagnosis());
-            newRecord.setPrescription(medicalRecord.getPrescription());
-            return medicalRecordRepository.save(newRecord);
+        MedicalRecord existingRecord = medicalRecordRepository.findById(id)
+                .orElseThrow(() -> new ResourceNotFoundException(
+                        "Medical record not found with ID: " + id));
+
+        if (medicalRecord.getPatient() != null && medicalRecord.getPatient().getId() != null) {
+            Patient patient = patientRepository.findById(medicalRecord.getPatient().getId())
+                    .orElseThrow(() -> new ResourceNotFoundException(
+                            "Patient not found with ID: " + medicalRecord.getPatient().getId()));
+            existingRecord.setPatient(patient);
         }
-        return null;
+
+        existingRecord.setDiagnosis(medicalRecord.getDiagnosis());
+        existingRecord.setPrescription(medicalRecord.getPrescription());
+        return medicalRecordRepository.save(existingRecord);
     }
 }

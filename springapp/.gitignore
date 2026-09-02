@@ -1,0 +1,14 @@
+# Maven
+target/
+
+# Environment files
+.env
+*.env
+
+# IDE
+.idea/
+.vscode/
+
+# OS
+.DS_Store
+Thumbs.db

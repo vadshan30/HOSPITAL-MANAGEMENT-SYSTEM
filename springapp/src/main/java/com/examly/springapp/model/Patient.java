@@ -2,6 +2,7 @@ package com.examly.springapp.model;
 
 import java.util.List;
 
+import com.fasterxml.jackson.annotation.JsonIgnore;
 import com.fasterxml.jackson.annotation.JsonProperty;
 
 import jakarta.persistence.Entity;
@@ -29,8 +30,10 @@ public class Patient {
     @Size(max = 255, message = "Address must not exceed 255 characters")
     private String address;
     private int age;
+    @JsonIgnore
     @OneToMany(mappedBy = "patient")
     private List<MedicalRecord> medicalRecords;
+    @JsonIgnore
     @OneToMany(mappedBy = "patient")
     private List<Appointment> appointment;
 

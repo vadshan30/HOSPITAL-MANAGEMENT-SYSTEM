@@ -3,6 +3,8 @@ package com.examly.springapp.model;
 import jakarta.persistence.*;
 import jakarta.validation.constraints.NotBlank;
 
+import com.fasterxml.jackson.annotation.JsonProperty;
+
 @Entity
 @Table(name = "app_users")
 public class AppUser {
@@ -16,6 +18,7 @@ public class AppUser {
     private String username;
 
     @NotBlank
+    @JsonProperty(access = JsonProperty.Access.WRITE_ONLY)
     private String password;
 
     @Enumerated(EnumType.STRING)

@@ -8,7 +8,17 @@ target/
 # IDE
 .idea/
 .vscode/
+*.iml
+*.iws
+*.ipr
 
 # OS
 .DS_Store
 Thumbs.db
+
+# Logs
+*.log
+logs/
+
+# Spring Boot
+spring-shell.log

@@ -38,6 +38,19 @@ class ApiValidationTests {
                 .andExpect(status().isBadRequest())
                 .andExpect(jsonPath("$.status").value(400));
 
+        mockMvc.perform(post("/patients")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"name\":\"Patient\",\"email\":\"invalid-email\"}"))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.error").value("Bad Request"))
+                .andExpect(jsonPath("$.message").value("email: Email must be valid"));
+
+        mockMvc.perform(post("/doctors")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"name\":\"Doctor\",\"email\":\"doctor@example.com\",\"specialization\":\" \"}"))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.status").value(400));
+
         mockMvc.perform(post("/doctors")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("{\"name\":\"Doctor\",\"email\":\"not-an-email\",\"specialization\":\"Cardiology\"}"))
@@ -51,6 +64,15 @@ class ApiValidationTests {
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("{\"status\":\"BOOKED\"}"))
                 .andExpect(status().isBadRequest());
+
+        mockMvc.perform(post("/appointments")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"appointmentTime\":\"not-a-date\",\"status\":\"BOOKED\"}"))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.timestamp").exists())
+                .andExpect(jsonPath("$.status").value(400))
+                .andExpect(jsonPath("$.error").value("Bad Request"))
+                .andExpect(jsonPath("$.message").value("Invalid request"));
 
         mockMvc.perform(post("/medicalrecords")
                         .contentType(MediaType.APPLICATION_JSON)

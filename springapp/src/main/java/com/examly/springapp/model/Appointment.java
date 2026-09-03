@@ -12,6 +12,7 @@ import jakarta.persistence.JoinColumn;
 import jakarta.persistence.ManyToOne;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
+import jakarta.validation.constraints.Size;
 
 @Entity
 public class Appointment {
@@ -28,7 +29,9 @@ public class Appointment {
     @NotNull(message = "Appointment time is required")
     private LocalDateTime appointmentTime;
     @NotBlank(message = "Status is required")
+    @Size(max = 30, message = "Status must not exceed 30 characters")
     private String status;
+    @Size(max = 500, message = "Notes must not exceed 500 characters")
     private String notes;
     
     public Appointment() {

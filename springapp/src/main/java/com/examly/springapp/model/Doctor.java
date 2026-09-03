@@ -9,6 +9,7 @@ import jakarta.persistence.Id;
 import jakarta.persistence.OneToMany;
 import jakarta.validation.constraints.Email;
 import jakarta.validation.constraints.NotBlank;
+import jakarta.validation.constraints.Size;
 
 @Entity
 public class Doctor {
@@ -16,10 +17,12 @@ public class Doctor {
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
     @NotBlank(message = "Name is required")
+    @Size(max = 100, message = "Name must not exceed 100 characters")
     private String name;
     @Email(message = "Email must be valid")
     private String email;
     @NotBlank(message = "Specialization is required")
+    @Size(max = 100, message = "Specialization must not exceed 100 characters")
     private String specialization;
     private String phone;
     private int roomNumber;

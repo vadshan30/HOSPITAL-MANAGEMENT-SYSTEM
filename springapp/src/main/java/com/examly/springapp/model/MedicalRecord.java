@@ -7,6 +7,7 @@ import jakarta.persistence.Id;
 import jakarta.persistence.JoinColumn;
 import jakarta.persistence.ManyToOne;
 import jakarta.validation.constraints.NotBlank;
+import jakarta.validation.constraints.Size;
 
 @Entity
 public class MedicalRecord {
@@ -14,8 +15,10 @@ public class MedicalRecord {
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
     @NotBlank(message = "Diagnosis is required")
+    @Size(max = 500, message = "Diagnosis must not exceed 500 characters")
     private String diagnosis;
     @NotBlank(message = "Prescription is required")
+    @Size(max = 500, message = "Prescription must not exceed 500 characters")
     private String prescription;
     @ManyToOne
     @JoinColumn(name = "patient_id")

@@ -1,8 +1,6 @@
 package com.examly.springapp.service;
 
 import java.util.List;
-import java.util.Optional;
-
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 
@@ -63,13 +61,19 @@ public class AppointmentServiceImpl implements AppointmentService {
                 .orElseThrow(() -> new ResourceNotFoundException(
                         "Appointment not found with ID: " + id));
 
-        if (appointment.getPatient() != null && appointment.getPatient().getId() != null) {
+        if (appointment.getPatient() != null) {
+            if (appointment.getPatient().getId() == null) {
+                throw new ResourceNotFoundException("Patient ID is required");
+            }
             Patient patient = patientRepository.findById(appointment.getPatient().getId())
                     .orElseThrow(() -> new ResourceNotFoundException(
                             "Patient not found with ID: " + appointment.getPatient().getId()));
             existingAppointment.setPatient(patient);
         }
-        if (appointment.getDoctor() != null && appointment.getDoctor().getId() != null) {
+        if (appointment.getDoctor() != null) {
+            if (appointment.getDoctor().getId() == null) {
+                throw new ResourceNotFoundException("Doctor ID is required");
+            }
             Doctor doctor = doctorRepository.findById(appointment.getDoctor().getId())
                     .orElseThrow(() -> new ResourceNotFoundException(
                             "Doctor not found with ID: " + appointment.getDoctor().getId()));

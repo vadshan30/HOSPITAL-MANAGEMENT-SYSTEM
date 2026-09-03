@@ -1,8 +1,6 @@
 package com.examly.springapp.service;
 
 import java.util.List;
-import java.util.Optional;
-
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 
@@ -33,6 +31,9 @@ public class MedicalRecordServiceImpl implements MedicalRecordService {
 
     @Override
     public List<MedicalRecord> getMedicalRecordsByPatientId(Long patientId) {
+        patientRepository.findById(patientId)
+            .orElseThrow(() -> new ResourceNotFoundException(
+                "Patient not found with ID: " + patientId));
         return medicalRecordRepository.findByPatientId(patientId);
     }
 
@@ -49,7 +50,10 @@ public class MedicalRecordServiceImpl implements MedicalRecordService {
                 .orElseThrow(() -> new ResourceNotFoundException(
                         "Medical record not found with ID: " + id));
 
-        if (medicalRecord.getPatient() != null && medicalRecord.getPatient().getId() != null) {
+        if (medicalRecord.getPatient() != null) {
+            if (medicalRecord.getPatient().getId() == null) {
+                throw new ResourceNotFoundException("Patient ID is required");
+            }
             Patient patient = patientRepository.findById(medicalRecord.getPatient().getId())
                     .orElseThrow(() -> new ResourceNotFoundException(
                             "Patient not found with ID: " + medicalRecord.getPatient().getId()));

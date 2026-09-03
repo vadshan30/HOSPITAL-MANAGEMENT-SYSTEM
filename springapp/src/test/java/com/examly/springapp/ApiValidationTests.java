@@ -84,6 +84,39 @@ class ApiValidationTests {
                 .andExpect(status().isNotFound());
     }
 
+                @Test
+                void missingPatientForMedicalRecordLookupReturnsNotFound() throws Exception {
+                                mockMvc.perform(get("/medicalrecords/patient/{patientId}", Long.MAX_VALUE))
+                                                                .andExpect(status().isNotFound())
+                                                                .andExpect(jsonPath("$.status").value(404));
+                }
+
+                @Test
+                void relationshipWithoutIdOnUpdateReturnsNotFound() throws Exception {
+                                mockMvc.perform(put("/appointments/{id}", Long.MAX_VALUE)
+                                                                                                .contentType(MediaType.APPLICATION_JSON)
+                                                                                                .content("""
+                                                                                                                                {
+                                                                                                                                        "patient": {},
+                                                                                                                                        "doctor": {},
+                                                                                                                                        "appointmentTime": "2026-01-10T09:00:00",
+                                                                                                                                        "status": "BOOKED"
+                                                                                                                                }
+                                                                                                                                """))
+                                                                .andExpect(status().isNotFound());
+
+                                mockMvc.perform(put("/medicalrecords/{id}", Long.MAX_VALUE)
+                                                                                                .contentType(MediaType.APPLICATION_JSON)
+                                                                                                .content("""
+                                                                                                                                {
+                                                                                                                                        "diagnosis": "Flu",
+                                                                                                                                        "prescription": "Rest",
+                                                                                                                                        "patient": {}
+                                                                                                                                }
+                                                                                                                                """))
+                                                                .andExpect(status().isNotFound());
+                }
+
     @Test
     void successfulCreateUpdateAndDeleteReturnExpectedStatuses() throws Exception {
         String patient = """

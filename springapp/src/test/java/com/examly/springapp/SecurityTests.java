@@ -5,8 +5,10 @@ import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.put;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.content;
 
 import java.nio.charset.StandardCharsets;
 import java.util.Date;
@@ -24,9 +26,17 @@ import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.MvcResult;
 
 import com.examly.springapp.model.AppUser;
+import com.examly.springapp.model.Appointment;
+import com.examly.springapp.model.Doctor;
+import com.examly.springapp.model.MedicalRecord;
+import com.examly.springapp.model.Patient;
 import com.examly.springapp.model.UserRole;
 import com.examly.springapp.repository.AdminRepository;
 import com.examly.springapp.repository.AppUserRepository;
+import com.examly.springapp.repository.AppointmentRepository;
+import com.examly.springapp.repository.DoctorRepository;
+import com.examly.springapp.repository.MedicalRecordRepository;
+import com.examly.springapp.repository.PatientRepository;
 import com.examly.springapp.security.JwtUtils;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -50,6 +60,18 @@ class SecurityTests {
     @Autowired
     private AdminRepository adminRepository;
 
+        @Autowired
+        private PatientRepository patientRepository;
+
+    @Autowired
+    private DoctorRepository doctorRepository;
+
+    @Autowired
+    private AppointmentRepository appointmentRepository;
+
+    @Autowired
+    private MedicalRecordRepository medicalRecordRepository;
+
     @Autowired
     private JwtUtils jwtUtils;
 
@@ -60,11 +82,16 @@ class SecurityTests {
 
     @BeforeEach
     void setUp() {
+        appointmentRepository.deleteAll();
+        medicalRecordRepository.deleteAll();
         appUserRepository.deleteAll();
         adminRepository.deleteAll();
+        patientRepository.deleteAll();
+        doctorRepository.deleteAll();
         appUserRepository.save(new AppUser("admin_user", encoder.encode("adminpass"), UserRole.ADMIN));
         appUserRepository.save(new AppUser("doctor_user", encoder.encode("doctorpass"), UserRole.DOCTOR));
         appUserRepository.save(new AppUser("patient_user", encoder.encode("patientpass"), UserRole.PATIENT));
+        appUserRepository.save(new AppUser("patient@example.com", encoder.encode("patientpass"), UserRole.PATIENT));
     }
 
     // ---- JWT utility tests ----
@@ -325,6 +352,55 @@ class SecurityTests {
                 .andExpect(status().is2xxSuccessful());
     }
 
+    @Test
+    void patientAccessingOwnPatientId_ShouldBeAllowed() throws Exception {
+        Patient patient = patientRepository.save(
+                new Patient("Own Patient", "patient@example.com", "111", "Own Street", 30));
+        String token = loginAndGetToken("patient@example.com", "patientpass");
+
+        mockMvc.perform(get("/patients/{id}", patient.getId())
+                        .header("Authorization", "Bearer " + token))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.name").value("Own Patient"));
+    }
+
+    @Test
+    void patientAccessingAnotherPatientId_ShouldReturnForbiddenWithoutData() throws Exception {
+        patientRepository.save(new Patient("Own Patient", "patient@example.com", "111", "Own Street", 30));
+        Patient anotherPatient = patientRepository.save(
+                new Patient("Another Patient", "another@example.com", "222", "Other Street", 40));
+        String token = loginAndGetToken("patient@example.com", "patientpass");
+
+        mockMvc.perform(get("/patients/{id}", anotherPatient.getId())
+                        .header("Authorization", "Bearer " + token))
+                .andExpect(status().isForbidden())
+                .andExpect(content().string(""));
+    }
+
+    @Test
+    void adminAccessingAnyPatientId_ShouldBeAllowed() throws Exception {
+        Patient patient = patientRepository.save(
+                new Patient("Any Patient", "any@example.com", "333", "Any Street", 45));
+        String token = loginAndGetToken("admin_user", "adminpass");
+
+        mockMvc.perform(get("/patients/{id}", patient.getId())
+                        .header("Authorization", "Bearer " + token))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.name").value("Any Patient"));
+    }
+
+    @Test
+    void doctorAccessingPatient_ShouldRetainExistingAccess() throws Exception {
+        Patient patient = patientRepository.save(
+                new Patient("Doctor Patient", "doctor.patient@example.com", "444", "Doctor Street", 50));
+        String token = loginAndGetToken("doctor_user", "doctorpass");
+
+        mockMvc.perform(get("/patients/{id}", patient.getId())
+                        .header("Authorization", "Bearer " + token))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.name").value("Doctor Patient"));
+    }
+
         @Test
         void patientRole_CannotCreateDoctor() throws Exception {
                 String token = loginAndGetToken("patient_user", "patientpass");
@@ -354,6 +430,165 @@ class SecurityTests {
                                                 .content("{\"diagnosis\":\"Flu\",\"prescription\":\"Rest\"}"))
                                 .andExpect(status().isForbidden());
         }
+
+    // ---- IDOR prevention tests for appointment/medical record updates ----
+
+    @Test
+    void patient_UpdateOwnAppointment_ShouldBeAllowed() throws Exception {
+        Patient ownPatient = patientRepository.save(
+                new Patient("Own Patient", "patient@example.com", "111", "Own Street", 30));
+        Doctor doctor = doctorRepository.save(
+                new Doctor("Ido Doc", "idodoc@hospital.com", "Surgery", "222", 5));
+        Appointment appt = appointmentRepository.save(new Appointment(null, ownPatient, doctor,
+                java.time.LocalDateTime.of(2026, 6, 1, 10, 0), "BOOKED", "Initial"));
+        String token = loginAndGetToken("patient@example.com", "patientpass");
+
+        mockMvc.perform(put("/appointments/{id}", appt.getId())
+                        .header("Authorization", "Bearer " + token)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"patient\":{\"id\":" + ownPatient.getId()
+                                + "},\"doctor\":{\"id\":" + doctor.getId()
+                                + "},\"appointmentTime\":\"2026-06-01T10:00:00\","
+                                + "\"status\":\"CANCELLED\",\"notes\":\"Updated by owner\"}"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.status").value("CANCELLED"))
+                .andExpect(jsonPath("$.notes").value("Updated by owner"));
+    }
+
+    @Test
+    void patient_UpdateAnotherPatientsAppointment_ShouldReturn403() throws Exception {
+        Patient ownPatient = patientRepository.save(
+                new Patient("Own Patient", "patient@example.com", "111", "Own Street", 30));
+        Patient otherPatient = patientRepository.save(
+                new Patient("Other Patient", "other@example.com", "999", "Other Street", 40));
+        Doctor doctor = doctorRepository.save(
+                new Doctor("Ido Doc", "idodoc@hospital.com", "Surgery", "222", 5));
+        Appointment appt = appointmentRepository.save(new Appointment(null, otherPatient, doctor,
+                java.time.LocalDateTime.of(2026, 6, 1, 10, 0), "BOOKED", "Other appt"));
+        String token = loginAndGetToken("patient@example.com", "patientpass");
+
+        mockMvc.perform(put("/appointments/{id}", appt.getId())
+                        .header("Authorization", "Bearer " + token)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"patient\":{\"id\":" + ownPatient.getId()
+                                + "},\"doctor\":{\"id\":" + doctor.getId()
+                                + "},\"appointmentTime\":\"2026-06-01T10:00:00\","
+                                + "\"status\":\"CANCELLED\",\"notes\":\"Hijacked\"}"))
+                .andExpect(status().isForbidden())
+                .andExpect(content().string(""));
+    }
+
+    @Test
+    void patient_UpdateOwnMedicalRecord_ShouldBeAllowed() throws Exception {
+        Patient ownPatient = patientRepository.save(
+                new Patient("Own Patient", "patient@example.com", "111", "Own Street", 30));
+        MedicalRecord record = medicalRecordRepository.save(
+                new MedicalRecord(null, "Flu", "Rest", ownPatient));
+        String token = loginAndGetToken("patient@example.com", "patientpass");
+
+        mockMvc.perform(put("/medicalrecords/{id}", record.getId())
+                        .header("Authorization", "Bearer " + token)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"diagnosis\":\"Severe Flu\",\"prescription\":\"Antibiotics\","
+                                + "\"patient\":{\"id\":" + ownPatient.getId() + "}}"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.diagnosis").value("Severe Flu"));
+    }
+
+    @Test
+    void patient_UpdateAnotherPatientsMedicalRecord_ShouldReturn403() throws Exception {
+        Patient ownPatient = patientRepository.save(
+                new Patient("Own Patient", "patient@example.com", "111", "Own Street", 30));
+        Patient otherPatient = patientRepository.save(
+                new Patient("Other Patient", "other@example.com", "999", "Other Street", 40));
+        MedicalRecord record = medicalRecordRepository.save(
+                new MedicalRecord(null, "Diabetes", "Insulin", otherPatient));
+        String token = loginAndGetToken("patient@example.com", "patientpass");
+
+        mockMvc.perform(put("/medicalrecords/{id}", record.getId())
+                        .header("Authorization", "Bearer " + token)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"diagnosis\":\"Tampered\",\"prescription\":\"Tampered\","
+                                + "\"patient\":{\"id\":" + ownPatient.getId() + "}}"))
+                .andExpect(status().isForbidden())
+                .andExpect(content().string(""));
+    }
+
+    @Test
+    void admin_UpdateAnyAppointment_ShouldBeAllowed() throws Exception {
+        Patient targetPatient = patientRepository.save(
+                new Patient("Target Patient", "target@example.com", "111", "Target Street", 30));
+        Doctor doctor = doctorRepository.save(
+                new Doctor("Ido Doc", "idodoc@hospital.com", "Surgery", "222", 5));
+        Appointment appt = appointmentRepository.save(new Appointment(null, targetPatient, doctor,
+                java.time.LocalDateTime.of(2026, 6, 1, 10, 0), "BOOKED", "Initial"));
+        String token = loginAndGetToken("admin_user", "adminpass");
+
+        mockMvc.perform(put("/appointments/{id}", appt.getId())
+                        .header("Authorization", "Bearer " + token)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"patient\":{\"id\":" + targetPatient.getId()
+                                + "},\"doctor\":{\"id\":" + doctor.getId()
+                                + "},\"appointmentTime\":\"2026-06-01T10:00:00\","
+                                + "\"status\":\"COMPLETED\",\"notes\":\"Admin updated\"}"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.status").value("COMPLETED"));
+    }
+
+    @Test
+    void doctor_UpdateAnyAppointment_ShouldBeAllowed() throws Exception {
+        Patient targetPatient = patientRepository.save(
+                new Patient("Target Patient", "target@example.com", "111", "Target Street", 30));
+        Doctor doctor = doctorRepository.save(
+                new Doctor("Ido Doc", "idodoc@hospital.com", "Surgery", "222", 5));
+        Appointment appt = appointmentRepository.save(new Appointment(null, targetPatient, doctor,
+                java.time.LocalDateTime.of(2026, 6, 1, 10, 0), "BOOKED", "Initial"));
+        String token = loginAndGetToken("doctor_user", "doctorpass");
+
+        mockMvc.perform(put("/appointments/{id}", appt.getId())
+                        .header("Authorization", "Bearer " + token)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"patient\":{\"id\":" + targetPatient.getId()
+                                + "},\"doctor\":{\"id\":" + doctor.getId()
+                                + "},\"appointmentTime\":\"2026-06-01T10:00:00\","
+                                + "\"status\":\"COMPLETED\",\"notes\":\"Doctor updated\"}"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.status").value("COMPLETED"));
+    }
+
+    @Test
+    void admin_UpdateAnyMedicalRecord_ShouldBeAllowed() throws Exception {
+        Patient targetPatient = patientRepository.save(
+                new Patient("Target Patient", "target@example.com", "111", "Target Street", 30));
+        MedicalRecord record = medicalRecordRepository.save(
+                new MedicalRecord(null, "Flu", "Rest", targetPatient));
+        String token = loginAndGetToken("admin_user", "adminpass");
+
+        mockMvc.perform(put("/medicalrecords/{id}", record.getId())
+                        .header("Authorization", "Bearer " + token)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"diagnosis\":\"Updated\",\"prescription\":\"Updated\","
+                                + "\"patient\":{\"id\":" + targetPatient.getId() + "}}"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.diagnosis").value("Updated"));
+    }
+
+    @Test
+    void doctor_UpdateAnyMedicalRecord_ShouldBeAllowed() throws Exception {
+        Patient targetPatient = patientRepository.save(
+                new Patient("Target Patient", "target@example.com", "111", "Target Street", 30));
+        MedicalRecord record = medicalRecordRepository.save(
+                new MedicalRecord(null, "Flu", "Rest", targetPatient));
+        String token = loginAndGetToken("doctor_user", "doctorpass");
+
+        mockMvc.perform(put("/medicalrecords/{id}", record.getId())
+                        .header("Authorization", "Bearer " + token)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"diagnosis\":\"Updated by doc\",\"prescription\":\"Updated by doc\","
+                                + "\"patient\":{\"id\":" + targetPatient.getId() + "}}"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.diagnosis").value("Updated by doc"));
+    }
 
     private String loginAndGetToken(String username, String password) throws Exception {
         MvcResult result = mockMvc.perform(post("/api/auth/login")

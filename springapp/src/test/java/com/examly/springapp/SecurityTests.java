@@ -8,6 +8,9 @@ import static org.springframework.test.web.servlet.request.MockMvcRequestBuilder
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
+import java.nio.charset.StandardCharsets;
+import java.util.Date;
+
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -27,6 +30,10 @@ import com.examly.springapp.repository.AppUserRepository;
 import com.examly.springapp.security.JwtUtils;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
+
+import io.jsonwebtoken.Jwts;
+import io.jsonwebtoken.SignatureAlgorithm;
+import io.jsonwebtoken.security.Keys;
 
 @SpringBootTest
 @AutoConfigureMockMvc
@@ -121,6 +128,7 @@ class SecurityTests {
                         .content(adminJson)
                         .header("Authorization", "Bearer " + loginAndGetToken("admin_user", "adminpass")))
                 .andExpect(status().isCreated())
+                .andExpect(jsonPath("$.password").doesNotExist())
                 .andReturn();
 
         // Verify the stored password in DB is BCrypt hashed
@@ -166,7 +174,8 @@ class SecurityTests {
                                 }
                                 """)
                         .header("Authorization", "Bearer " + token))
-                .andExpect(status().isOk());
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.password").doesNotExist());
 
         com.examly.springapp.model.Admin stored = adminRepository.findById(adminId).orElseThrow();
         assertTrue(encoder.matches("newpassword1", stored.getPassword()),
@@ -218,6 +227,29 @@ class SecurityTests {
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("{\"username\":\"nobody\",\"password\":\"pass\"}"))
                 .andExpect(status().isUnauthorized());
+    }
+
+    @Test
+    void login_MissingFields_ShouldReturn400() throws Exception {
+        mockMvc.perform(post("/api/auth/login")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"username\":\"admin_user\"}"))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.status").value(400));
+    }
+
+    @Test
+    void jwtExpiredToken_ShouldBeRejected() {
+        byte[] secret = "test-hospital-management-jwt-secret-key-must-be-at-least-256-bits-long"
+                .getBytes(StandardCharsets.UTF_8);
+        String expiredToken = Jwts.builder()
+                .setSubject("admin_user")
+                .claim("role", "ADMIN")
+                .setExpiration(new Date(System.currentTimeMillis() - 1000))
+                .signWith(Keys.hmacShaKeyFor(secret), SignatureAlgorithm.HS256)
+                .compact();
+
+        assertFalse(jwtUtils.validateToken(expiredToken));
     }
 
     @Test
@@ -292,6 +324,36 @@ class SecurityTests {
                         .header("Authorization", "Bearer " + token))
                 .andExpect(status().is2xxSuccessful());
     }
+
+        @Test
+        void patientRole_CannotCreateDoctor() throws Exception {
+                String token = loginAndGetToken("patient_user", "patientpass");
+                mockMvc.perform(post("/doctors")
+                                                .header("Authorization", "Bearer " + token)
+                                                .contentType(MediaType.APPLICATION_JSON)
+                                                .content("{\"name\":\"Dr. Blocked\",\"email\":\"blocked@example.com\",\"specialization\":\"Surgery\"}"))
+                                .andExpect(status().isForbidden());
+        }
+
+        @Test
+        void doctorRole_CannotCreatePatient() throws Exception {
+                String token = loginAndGetToken("doctor_user", "doctorpass");
+                mockMvc.perform(post("/patients")
+                                                .header("Authorization", "Bearer " + token)
+                                                .contentType(MediaType.APPLICATION_JSON)
+                                                .content("{\"name\":\"Blocked Patient\",\"email\":\"blocked@example.com\"}"))
+                                .andExpect(status().isForbidden());
+        }
+
+        @Test
+        void patientRole_CannotCreateMedicalRecord() throws Exception {
+                String token = loginAndGetToken("patient_user", "patientpass");
+                mockMvc.perform(post("/medicalrecords")
+                                                .header("Authorization", "Bearer " + token)
+                                                .contentType(MediaType.APPLICATION_JSON)
+                                                .content("{\"diagnosis\":\"Flu\",\"prescription\":\"Rest\"}"))
+                                .andExpect(status().isForbidden());
+        }
 
     private String loginAndGetToken(String username, String password) throws Exception {
         MvcResult result = mockMvc.perform(post("/api/auth/login")

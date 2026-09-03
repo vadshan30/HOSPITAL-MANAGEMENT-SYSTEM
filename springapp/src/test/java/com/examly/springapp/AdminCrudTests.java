@@ -55,7 +55,7 @@ class AdminCrudTests {
 
         mockMvc.perform(get("/api/admin/{id}", adminId))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.password").value("initial-secret"));
+                .andExpect(jsonPath("$.password").doesNotExist());
 
         mockMvc.perform(put("/api/admin/{id}", adminId)
                         .contentType(MediaType.APPLICATION_JSON)
@@ -72,7 +72,7 @@ class AdminCrudTests {
         mockMvc.perform(get("/api/admin/{id}", adminId))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.email").value("updated-admin@example.com"))
-                .andExpect(jsonPath("$.password").value("updated-secret"));
+                .andExpect(jsonPath("$.password").doesNotExist());
 
         mockMvc.perform(delete("/api/admin/{id}", adminId))
                 .andExpect(status().isNoContent());

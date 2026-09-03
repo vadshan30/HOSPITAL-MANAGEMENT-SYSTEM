@@ -853,11 +853,11 @@ public void testGetMedicalRecordsByPatient_Positive() throws Exception {
 // Negative Test - Patient has no medical records - JPQL
 @Test @Order(69)
 public void testGetMedicalRecordsByPatient_Negative() throws Exception {
-    // Using a patient ID that doesn't exist in the database
+    // Patient 9999 does not exist - Phase 4 established 404 as the intended behavior
     mockMvc.perform(MockMvcRequestBuilders.get("/medicalrecords/patient/9999")
             .accept(MediaType.APPLICATION_JSON))
-            .andExpect(MockMvcResultMatchers.status().isNoContent())
-            .andExpect(MockMvcResultMatchers.content().string("No medical records found"));
+            .andExpect(MockMvcResultMatchers.status().isNotFound())
+            .andExpect(MockMvcResultMatchers.jsonPath("$.status").value(404));
 }
 
 // GET /medicalrecords/{id}

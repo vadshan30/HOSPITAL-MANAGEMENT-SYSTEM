@@ -21,7 +21,7 @@ A production-ready REST API backend for managing hospital operations including p
 | Layer | Technology |
 |---|---|
 | Framework | Spring Boot 3.4.x |
-| Language | Java 21 |
+| Language | Java 17 |
 | Security | Spring Security + JWT (jjwt 0.11.5) |
 | Persistence | Spring Data JPA + Hibernate |
 | Database (prod) | MySQL 8 |
@@ -102,7 +102,7 @@ Tests use an isolated H2 in-memory database and do not require MySQL:
 ./mvnw clean test
 ```
 
-Expected: **181 tests passing**.
+Expected: **202 tests passing**.
 
 ## Swagger / OpenAPI
 

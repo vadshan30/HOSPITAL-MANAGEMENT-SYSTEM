@@ -64,19 +64,24 @@ public class SecurityConfig {
             .authenticationProvider(authenticationProvider())
             .authorizeHttpRequests(auth -> auth
                 .requestMatchers(HttpMethod.POST, "/api/auth/login").permitAll()
+                .requestMatchers(
+                        "/v3/api-docs/**",
+                        "/swagger-ui/**",
+                        "/swagger-ui.html"
+                ).permitAll()
                 .requestMatchers("/api/admin/**").hasRole("ADMIN")
                 .requestMatchers(HttpMethod.POST, "/doctors/**").hasAnyRole("ADMIN")
                 .requestMatchers(HttpMethod.PUT, "/doctors/**").hasAnyRole("ADMIN")
                 .requestMatchers(HttpMethod.DELETE, "/doctors/**").hasAnyRole("ADMIN")
                 .requestMatchers(HttpMethod.GET, "/doctors/**").hasAnyRole("ADMIN", "DOCTOR", "PATIENT")
                 .requestMatchers(HttpMethod.POST, "/patients/**").hasAnyRole("ADMIN")
-                .requestMatchers(HttpMethod.PUT, "/patients/**").hasAnyRole("ADMIN")
+                .requestMatchers(HttpMethod.PUT, "/patients/**").hasAnyRole("ADMIN", "DOCTOR", "PATIENT")
                 .requestMatchers(HttpMethod.DELETE, "/patients/**").hasAnyRole("ADMIN")
                 .requestMatchers(HttpMethod.GET, "/patients/**").hasAnyRole("ADMIN", "DOCTOR", "PATIENT")
                 .requestMatchers(HttpMethod.POST, "/appointments/**").hasAnyRole("ADMIN", "DOCTOR", "PATIENT")
                 .requestMatchers(HttpMethod.PUT, "/appointments/**").hasAnyRole("ADMIN", "DOCTOR", "PATIENT")
                 .requestMatchers(HttpMethod.GET, "/appointments/**").hasAnyRole("ADMIN", "DOCTOR", "PATIENT")
-                .requestMatchers(HttpMethod.POST, "/medicalrecords/**").hasAnyRole("ADMIN", "DOCTOR")
+                .requestMatchers(HttpMethod.POST, "/medicalrecords/**").hasAnyRole("ADMIN", "DOCTOR", "PATIENT")
                 .requestMatchers(HttpMethod.PUT, "/medicalrecords/**").hasAnyRole("ADMIN", "DOCTOR", "PATIENT")
                 .requestMatchers(HttpMethod.GET, "/medicalrecords/**").hasAnyRole("ADMIN", "DOCTOR", "PATIENT")
                 .anyRequest().authenticated()

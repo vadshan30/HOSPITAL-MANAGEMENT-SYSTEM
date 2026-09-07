@@ -18,7 +18,8 @@ public class GlobalExceptionHandler {
 
     @ExceptionHandler(ResourceNotFoundException.class)
     public ResponseEntity<Map<String, Object>> handleResourceNotFoundException(ResourceNotFoundException ex) {
-        return response(HttpStatus.NOT_FOUND, "Not Found", ex.getMessage());
+        // Do not echo the original exception message: it may contain internal IDs or entity names.
+        return response(HttpStatus.NOT_FOUND, "Not Found", "Resource not found");
     }
 
     @ExceptionHandler(MethodArgumentNotValidException.class)

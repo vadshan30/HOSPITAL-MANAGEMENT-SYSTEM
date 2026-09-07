@@ -62,9 +62,19 @@ public ResponseEntity<List<Patient>> getAllPatients(Authentication authenticatio
         }
         return new ResponseEntity<>(patient,HttpStatus.OK);
     }
-@PutMapping("/{id}") 
-public ResponseEntity<Patient> updatePatientById(@PathVariable Long id,@Valid @RequestBody Patient patient)
+@PutMapping("/{id}")
+public ResponseEntity<Patient> updatePatientById(@PathVariable Long id,
+                                                 @Valid @RequestBody Patient patient,
+                                                 Authentication authentication)
 {
+    // Ownership check: a PATIENT may only update their own record; ADMIN/DOCTOR may update any.
+    Patient existingPatient = patientService.getPatientId(id);
+    if (existingPatient == null) {
+        return new ResponseEntity<>(HttpStatus.NOT_FOUND);
+    }
+    if (!patientAccessService.canAccess(authentication, existingPatient)) {
+        return new ResponseEntity<>(HttpStatus.FORBIDDEN);
+    }
 
     Patient updatePatient=patientService.updatePatientById(id, patient);
 
@@ -74,7 +84,7 @@ public ResponseEntity<Patient> updatePatientById(@PathVariable Long id,@Valid @R
     }
     return new ResponseEntity<>(updatePatient,HttpStatus.OK);
 
-} 
+}
 
 @DeleteMapping("/{id}")
 public ResponseEntity<Void> deletePatientById(@PathVariable Long id) {

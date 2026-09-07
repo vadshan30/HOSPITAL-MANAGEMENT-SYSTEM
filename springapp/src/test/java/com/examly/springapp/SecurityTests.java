@@ -422,12 +422,14 @@ class SecurityTests {
         }
 
         @Test
-        void patientRole_CannotCreateMedicalRecord() throws Exception {
+        void patientRole_CannotCreateMedicalRecordForAnotherPatient() throws Exception {
+                // patient_user has no Patient row; any non-existent ID triggers the IDOR check (403).
                 String token = loginAndGetToken("patient_user", "patientpass");
                 mockMvc.perform(post("/medicalrecords")
                                                 .header("Authorization", "Bearer " + token)
                                                 .contentType(MediaType.APPLICATION_JSON)
-                                                .content("{\"diagnosis\":\"Flu\",\"prescription\":\"Rest\"}"))
+                                                .content("{\"diagnosis\":\"Flu\",\"prescription\":\"Rest\","
+                                                        + "\"patient\":{\"id\":999999}}"))
                                 .andExpect(status().isForbidden());
         }
 
@@ -588,6 +590,172 @@ class SecurityTests {
                                 + "\"patient\":{\"id\":" + targetPatient.getId() + "}}"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.diagnosis").value("Updated by doc"));
+    }
+
+    // ---- Phase 10: creation-time IDOR prevention ----
+
+    @Test
+    void patient_CreateOwnAppointment_ShouldBeAllowed() throws Exception {
+        Patient ownPatient = patientRepository.save(
+                new Patient("Own Patient", "patient@example.com", "111", "Own Street", 30));
+        Doctor doctor = doctorRepository.save(
+                new Doctor("Ido Doc", "idodoc@hospital.com", "Surgery", "222", 5));
+        String token = loginAndGetToken("patient@example.com", "patientpass");
+
+        mockMvc.perform(post("/appointments")
+                        .header("Authorization", "Bearer " + token)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"patient\":{\"id\":" + ownPatient.getId()
+                                + "},\"doctor\":{\"id\":" + doctor.getId()
+                                + "},\"appointmentTime\":\"2026-06-01T10:00:00\","
+                                + "\"status\":\"BOOKED\",\"notes\":\"OK\"}"))
+                .andExpect(status().isCreated());
+    }
+
+    @Test
+    void patient_CreateAppointmentForAnotherPatient_ShouldReturn403() throws Exception {
+        patientRepository.save(new Patient("Own Patient", "patient@example.com", "111", "Own Street", 30));
+        Patient otherPatient = patientRepository.save(
+                new Patient("Other Patient", "other@example.com", "999", "Other Street", 40));
+        Doctor doctor = doctorRepository.save(
+                new Doctor("Ido Doc", "idodoc@hospital.com", "Surgery", "222", 5));
+        String token = loginAndGetToken("patient@example.com", "patientpass");
+
+        mockMvc.perform(post("/appointments")
+                        .header("Authorization", "Bearer " + token)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"patient\":{\"id\":" + otherPatient.getId()
+                                + "},\"doctor\":{\"id\":" + doctor.getId()
+                                + "},\"appointmentTime\":\"2026-06-01T10:00:00\","
+                                + "\"status\":\"BOOKED\",\"notes\":\"Hijack attempt\"}"))
+                .andExpect(status().isForbidden())
+                .andExpect(content().string(""));
+    }
+
+    @Test
+    void patient_CreateOwnMedicalRecord_ShouldBeAllowed() throws Exception {
+        Patient ownPatient = patientRepository.save(
+                new Patient("Own Patient", "patient@example.com", "111", "Own Street", 30));
+        String token = loginAndGetToken("patient@example.com", "patientpass");
+
+        mockMvc.perform(post("/medicalrecords")
+                        .header("Authorization", "Bearer " + token)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"diagnosis\":\"Flu\",\"prescription\":\"Rest\","
+                                + "\"patient\":{\"id\":" + ownPatient.getId() + "}}"))
+                .andExpect(status().isCreated());
+    }
+
+    @Test
+    void patient_CreateMedicalRecordForAnotherPatient_ShouldReturn403() throws Exception {
+        patientRepository.save(new Patient("Own Patient", "patient@example.com", "111", "Own Street", 30));
+        Patient otherPatient = patientRepository.save(
+                new Patient("Other Patient", "other@example.com", "999", "Other Street", 40));
+        String token = loginAndGetToken("patient@example.com", "patientpass");
+
+        mockMvc.perform(post("/medicalrecords")
+                        .header("Authorization", "Bearer " + token)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"diagnosis\":\"Tampered\",\"prescription\":\"Tampered\","
+                                + "\"patient\":{\"id\":" + otherPatient.getId() + "}}"))
+                .andExpect(status().isForbidden())
+                .andExpect(content().string(""));
+    }
+
+    // ---- Phase 10: PUT /patients/{id} ownership ----
+
+    @Test
+    void patient_UpdateOwnPatient_ShouldBeAllowed() throws Exception {
+        Patient ownPatient = patientRepository.save(
+                new Patient("Own Patient", "patient@example.com", "111", "Own Street", 30));
+        String token = loginAndGetToken("patient@example.com", "patientpass");
+
+        mockMvc.perform(put("/patients/{id}", ownPatient.getId())
+                        .header("Authorization", "Bearer " + token)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"name\":\"Self Updated\",\"email\":\"patient@example.com\","
+                                + "\"phone\":\"999\",\"address\":\"Own Street\",\"age\":35}"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.name").value("Self Updated"));
+    }
+
+    @Test
+    void patient_UpdateAnotherPatient_ShouldReturn403() throws Exception {
+        patientRepository.save(new Patient("Own Patient", "patient@example.com", "111", "Own Street", 30));
+        Patient otherPatient = patientRepository.save(
+                new Patient("Other Patient", "other@example.com", "999", "Other Street", 40));
+        String token = loginAndGetToken("patient@example.com", "patientpass");
+
+        mockMvc.perform(put("/patients/{id}", otherPatient.getId())
+                        .header("Authorization", "Bearer " + token)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"name\":\"Hijacked\",\"email\":\"other@example.com\","
+                                + "\"phone\":\"000\",\"address\":\"Other Street\",\"age\":40}"))
+                .andExpect(status().isForbidden())
+                .andExpect(content().string(""));
+    }
+
+    @Test
+    void doctor_UpdateAnyPatient_ShouldBeAllowed() throws Exception {
+        Patient targetPatient = patientRepository.save(
+                new Patient("Any Patient", "any@example.com", "111", "Any Street", 45));
+        String token = loginAndGetToken("doctor_user", "doctorpass");
+
+        mockMvc.perform(put("/patients/{id}", targetPatient.getId())
+                        .header("Authorization", "Bearer " + token)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"name\":\"Doctor Updated\",\"email\":\"any@example.com\","
+                                + "\"phone\":\"111\",\"address\":\"Any Street\",\"age\":45}"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.name").value("Doctor Updated"));
+    }
+
+    @Test
+    void admin_UpdateAnyPatient_ShouldBeAllowed() throws Exception {
+        Patient targetPatient = patientRepository.save(
+                new Patient("Any Patient", "any@example.com", "111", "Any Street", 45));
+        String token = loginAndGetToken("admin_user", "adminpass");
+
+        mockMvc.perform(put("/patients/{id}", targetPatient.getId())
+                        .header("Authorization", "Bearer " + token)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"name\":\"Admin Updated\",\"email\":\"any@example.com\","
+                                + "\"phone\":\"111\",\"address\":\"Any Street\",\"age\":45}"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.name").value("Admin Updated"));
+    }
+
+    // ---- Phase 10: generic 404 response (no ID leakage) ----
+
+    @Test
+    void resourceNotFound_ShouldNotLeakInternalIds() throws Exception {
+        String token = loginAndGetToken("admin_user", "adminpass");
+        MvcResult result = mockMvc.perform(get("/api/admin/{id}", Long.MAX_VALUE)
+                        .header("Authorization", "Bearer " + token))
+                .andExpect(status().isNotFound())
+                .andReturn();
+        String body = result.getResponse().getContentAsString();
+        org.junit.jupiter.api.Assertions.assertTrue(body.contains("Resource not found"),
+                "Generic message should be returned");
+        org.junit.jupiter.api.Assertions.assertFalse(body.contains(String.valueOf(Long.MAX_VALUE)),
+                "Internal ID should not appear in 404 body");
+    }
+
+    // ---- Phase 10: OpenAPI / Swagger is reachable ----
+
+    @Test
+    void openApiDocs_ShouldBeReachableWithoutAuth() throws Exception {
+        mockMvc.perform(get("/v3/api-docs"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.openapi").exists())
+                .andExpect(jsonPath("$.components.securitySchemes.bearerAuth").exists());
+    }
+
+    @Test
+    void swaggerUi_ShouldBeReachableWithoutAuth() throws Exception {
+        mockMvc.perform(org.springframework.test.web.servlet.request.MockMvcRequestBuilders
+                        .get("/swagger-ui/index.html"))
+                .andExpect(status().isOk());
     }
 
     private String loginAndGetToken(String username, String password) throws Exception {

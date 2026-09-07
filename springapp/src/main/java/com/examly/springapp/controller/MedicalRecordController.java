@@ -38,7 +38,16 @@ public class MedicalRecordController {
     private PatientService patientService;
     
     @PostMapping
-    public ResponseEntity<MedicalRecord> createMedicalRecord(@Valid @RequestBody MedicalRecord medicalRecord) {
+    public ResponseEntity<MedicalRecord> createMedicalRecord(@Valid @RequestBody MedicalRecord medicalRecord,
+                                                            Authentication authentication) {
+        // Prevent patient ID spoofing: load the actual patient from DB (body may only have the ID)
+        // and verify the authenticated PATIENT is creating a record for themselves.
+        if (patientAccessService.isPatient(authentication)) {
+            Patient actualPatient = patientRepository.findById(medicalRecord.getPatient().getId()).orElse(null);
+            if (!patientAccessService.canAccess(authentication, actualPatient)) {
+                return ResponseEntity.status(HttpStatus.FORBIDDEN).build();
+            }
+        }
         MedicalRecord savedMedicalRecord = medicalRecordService.addMedicalRecord(medicalRecord);
         return new ResponseEntity<>(savedMedicalRecord, HttpStatus.CREATED);
     }

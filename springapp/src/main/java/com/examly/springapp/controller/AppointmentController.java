@@ -35,7 +35,16 @@ public class AppointmentController {
     private PatientRepository patientRepository;
     
     @PostMapping
-    public ResponseEntity<Appointment> createAppointment(@Valid @RequestBody Appointment appointment) {
+    public ResponseEntity<Appointment> createAppointment(@Valid @RequestBody Appointment appointment,
+                                                        Authentication authentication) {
+        // Prevent patient ID spoofing: load the actual patient from DB (body may only have the ID)
+        // and verify the authenticated PATIENT is creating an appointment for themselves.
+        if (patientAccessService.isPatient(authentication)) {
+            Patient actualPatient = patientRepository.findById(appointment.getPatient().getId()).orElse(null);
+            if (!patientAccessService.canAccess(authentication, actualPatient)) {
+                return ResponseEntity.status(HttpStatus.FORBIDDEN).build();
+            }
+        }
         Appointment savedAppointment = appointmentService.addAppointment(appointment);
         return new ResponseEntity<>(savedAppointment, HttpStatus.CREATED);
     }
